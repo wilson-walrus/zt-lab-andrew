@@ -10,14 +10,6 @@ virtualmachines:
         value: "bastions"
     networks:
       - default
-    userdata: |-
-      #cloud-config
-      user: rhel
-      password: ansible123!
-      chpasswd: { expire: False }
-      runcmd:
-        - echo "PasswordAuthentication yes" > /etc/ssh/sshd_config.d/50-cloud-init.conf
-        - systemctl reload sshd
   - name: "node02"
     image: "rhel-9.5"
     memory: "2G"
@@ -28,14 +20,6 @@ virtualmachines:
         value: "isolated"
     networks:
       - default
-    userdata: |-
-      #cloud-config
-      user: rhel
-      password: ansible123!
-      chpasswd: { expire: False }
-      runcmd:
-        - echo "PasswordAuthentication yes" > /etc/ssh/sshd_config.d/50-cloud-init.conf
-        - systemctl reload sshd
   - name: "node03"
     image: "rhel-9.5"
     memory: "2G"
@@ -46,11 +30,3 @@ virtualmachines:
         value: "isolated"
     networks:
       - default
-    userdata: |-
-      #cloud-config
-      user: rhel
-      password: ansible123!
-      chpasswd: { expire: False }
-      runcmd:
-        - echo "PasswordAuthentication yes" > /etc/ssh/sshd_config.d/50-cloud-init.conf
-        - systemctl reload sshd
