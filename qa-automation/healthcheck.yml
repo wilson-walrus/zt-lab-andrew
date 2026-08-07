@@ -1,0 +1,86 @@
+---
+# Healthcheck QA — verifies lab environment is reachable and services respond.
+# Non-destructive: does not modify any lab state.
+
+- name: Build inventory
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Add bastion host
+      ansible.builtin.add_host:
+        name: "{{ lookup('ansible.builtin.env', 'BASTION_HOST') }}"
+        ansible_ssh_host: "{{ lookup('ansible.builtin.env', 'BASTION_HOST') }}"
+        ansible_ssh_port: "{{ lookup('ansible.builtin.env', 'BASTION_PORT') }}"
+        ansible_ssh_user: "{{ lookup('ansible.builtin.env', 'BASTION_USER') }}"
+        ansible_ssh_pass: "{{ lookup('ansible.builtin.env', 'BASTION_PASSWORD') }}"
+
+- name: Healthcheck
+  hosts: all:!localhost
+  gather_facts: false
+  become: false
+  tasks:
+    - name: Verify SSH connectivity
+      ansible.builtin.ping:
+
+    - name: Check wetty service (control)
+      ansible.builtin.uri:
+        url: "http://localhost:3000/wetty"
+        method: GET
+        status_code: [200, 301, 302, 304]
+        timeout: 10
+      register: r_wetty
+      failed_when: false
+
+    - name: Check wetty service (node01)
+      ansible.builtin.uri:
+        url: "http://localhost:3000/wetty_node01"
+        method: GET
+        status_code: [200, 301, 302, 304]
+        timeout: 10
+      register: r_wetty_node01
+      failed_when: false
+
+    - name: Check wetty service (node02)
+      ansible.builtin.uri:
+        url: "http://localhost:3000/wetty_node02"
+        method: GET
+        status_code: [200, 301, 302, 304]
+        timeout: 10
+      register: r_wetty_node02
+      failed_when: false
+
+    - name: Check wetty service (node03)
+      ansible.builtin.uri:
+        url: "http://localhost:3000/wetty_node03"
+        method: GET
+        status_code: [200, 301, 302, 304]
+        timeout: 10
+      register: r_wetty_node03
+      failed_when: false
+
+    - name: Summarise results
+      vars:
+        checks:
+          - name: SSH connectivity
+            ok: true
+          - name: "Wetty (control)"
+            ok: "{{ r_wetty.status | default(0) | int in [200, 301, 302, 304] }}"
+          - name: "Wetty (node01)"
+            ok: "{{ r_wetty_node01.status | default(0) | int in [200, 301, 302, 304] }}"
+          - name: "Wetty (node02)"
+            ok: "{{ r_wetty_node02.status | default(0) | int in [200, 301, 302, 304] }}"
+          - name: "Wetty (node03)"
+            ok: "{{ r_wetty_node03.status | default(0) | int in [200, 301, 302, 304] }}"
+        failed_checks: "{{ checks | selectattr('ok', 'equalto', false) | list }}"
+      block:
+        - name: Report healthy
+          ansible.builtin.debug:
+            msg: "All {{ checks | length }} checks passed."
+          when: failed_checks | length == 0
+
+        - name: Report failures
+          ansible.builtin.fail:
+            msg: >-
+              {{ failed_checks | length }}/{{ checks | length }} checks failed:
+              {{ failed_checks | map(attribute='name') | join(', ') }}
+          when: failed_checks | length > 0
