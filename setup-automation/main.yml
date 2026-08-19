@@ -59,35 +59,41 @@
 
   - name: Execute setup-node.sh if it exists
     when: r_script_test.stat.exists
-    shell: "sh -x /tmp/setup-scripts/setup-{{ ansible_host }}.sh > /tmp/setup-scripts/setup-{{ ansible_host }}.log 2>&1"
+    ansible.builtin.command: "sh -x /tmp/setup-scripts/setup-{{ ansible_host }}.sh"
     become: true
     register: r_result
+    changed_when: r_result.rc == 0
+    failed_when: false
     environment:
       SATELLITE_URL: "{{ satellite_url }}"
       SATELLITE_ORG: "{{ satellite_org }}"
       SATELLITE_ACTIVATIONKEY: "{{ satellite_activationkey }}"
 
-  - name: Output script result
-    ansible.builtin.debug:
-      var: r_result.stdout
+  - name: Combine script stdout and stderr
+    when: r_script_test.stat.exists
+    ansible.builtin.set_fact:
+      r_result_output: "{{ [r_result.stdout | default(''), r_result.stderr | default('')] | select | join('\n') }}"
+
+  - name: Write combined stdout and stderr to log file on host
+    ansible.builtin.copy:
+      dest: "/tmp/setup-scripts/setup-{{ ansible_host }}.log"
+      content: "{{ r_result_output }}"
+      mode: '0644'
+    become: true
     when: r_script_test.stat.exists
 
-  - name: Write script result to file
-    ansible.builtin.copy:
-      content: "{{ r_result.stdout | default(r_result.stderr) | default(r_result) }}"
-      dest: "/tmp/{{ ansible_host }}-setup-script.out"
-    delegate_to: localhost
-    when:
-    - r_result is defined
-
   - name: Output script result
     ansible.builtin.debug:
-      var: r_result
-    when: r_result is defined
+      msg: "{{ r_result_output }}"
+    when: r_script_test.stat.exists
 
   - name: Fail if stage was failed
     ansible.builtin.fail:
-      msg: "Setup failed"
+      msg: |
+        Setup script failed on host {{ ansible_host }} (exit code {{ r_result.rc }}).
+        ------------------------------------------------------------------------
+        {{ r_result_output }}
+        ------------------------------------------------------------------------
     when:
     - r_result is defined
     - r_result.rc != 0
